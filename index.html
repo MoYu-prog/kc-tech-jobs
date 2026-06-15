@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KC Tech Jobs — Kansas City Job Map</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d1b2a;
+  --panel: #112236;
+  --panel2: #162d47;
+  --cyan: #00c2cb;
+  --cyan2: #00e5f0;
+  --white: #f0f4f8;
+  --muted: #7a90a4;
+  --border: rgba(0,194,203,0.15);
+  --ai: #00c2cb;
+  --eng: #4f8ef7;
+  --data: #a78bfa;
+  --design: #f97316;
+  --mgmt: #34d399;
+}
+html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--white); overflow: hidden; }
+
+/* TOP NAV */
+header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  height: 52px; background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 20px; gap: 16px;
+}
+.logo {
+  font-size: 1rem; font-weight: 600; color: var(--cyan);
+  letter-spacing: -0.02em; white-space: nowrap;
+}
+.logo span { color: var(--white); font-weight: 300; }
+.header-search {
+  flex: 1; max-width: 360px;
+  background: var(--panel); border: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 12px; gap: 8px;
+  border-radius: 6px;
+}
+.header-search input {
+  background: none; border: none; outline: none;
+  color: var(--white); font-family: 'Inter', sans-serif;
+  font-size: 0.82rem; width: 100%; padding: 7px 0;
+}
+.header-search input::placeholder { color: var(--muted); }
+.search-icon { color: var(--muted); font-size: 0.85rem; }
+.header-stats {
+  margin-left: auto; display: flex; gap: 20px; align-items: center;
+}
+.stat { text-align: center; }
+.stat-num { font-size: 0.95rem; font-weight: 600; color: var(--cyan); }
+.stat-label { font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.city-badge {
+  background: var(--panel2); border: 1px solid var(--border);
+  padding: 5px 12px; border-radius: 20px;
+  font-size: 0.72rem; color: var(--cyan); letter-spacing: 0.05em;
+}
+
+/* LAYOUT */
+.app { display: flex; height: 100vh; padding-top: 52px; }
+
+/* SIDEBAR */
+.sidebar {
+  width: 300px; flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-section { padding: 16px; border-bottom: 1px solid var(--border); }
+.sidebar-label {
+  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--muted); margin-bottom: 10px; font-weight: 500;
+}
+
+/* CATEGORY FILTERS */
+.cat-filters { display: flex; flex-direction: column; gap: 6px; }
+.cat-btn {
+  display: flex; align-items: center; gap: 10px;
+  background: none; border: 1px solid transparent;
+  padding: 8px 10px; border-radius: 6px; cursor: pointer;
+  font-family: 'Inter', sans-serif; font-size: 0.8rem;
+  color: var(--muted); transition: all 0.15s; text-align: left;
+}
+.cat-btn:hover { background: var(--panel2); color: var(--white); }
+.cat-btn.active { background: var(--panel2); border-color: var(--border); color: var(--white); }
+.cat-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.cat-count { margin-left: auto; font-size: 0.72rem; color: var(--muted); }
+
+/* TYPE FILTERS */
+.type-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.type-btn {
+  background: var(--panel2); border: 1px solid var(--border);
+  padding: 5px 11px; border-radius: 20px; cursor: pointer;
+  font-family: 'Inter', sans-serif; font-size: 0.72rem;
+  color: var(--muted); transition: all 0.15s;
+}
+.type-btn:hover, .type-btn.active {
+  background: var(--cyan); color: var(--bg); border-color: var(--cyan); font-weight: 500;
+}
+
+/* SALARY FILTER */
+.salary-row { display: flex; gap: 8px; align-items: center; }
+.salary-input {
+  flex: 1; background: var(--panel2); border: 1px solid var(--border);
+  color: var(--white); padding: 6px 10px; border-radius: 5px;
+  font-family: 'Inter', sans-serif; font-size: 0.78rem; outline: none;
+}
+.salary-input:focus { border-color: var(--cyan); }
+.salary-sep { color: var(--muted); font-size: 0.75rem; }
+
+/* JOB LIST */
+.job-list { flex: 1; overflow-y: auto; padding: 8px; }
+.job-list::-webkit-scrollbar { width: 4px; }
+.job-list::-webkit-scrollbar-track { background: transparent; }
+.job-list::-webkit-scrollbar-thumb { background: var(--panel2); border-radius: 2px; }
+
+.job-card {
+  background: var(--panel2); border: 1px solid transparent;
+  border-radius: 8px; padding: 12px; margin-bottom: 6px;
+  cursor: pointer; transition: all 0.15s;
+}
+.job-card:hover, .job-card.active {
+  border-color: var(--cyan); background: rgba(0,194,203,0.08);
+}
+.job-card-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
+.company-logo {
+  width: 34px; height: 34px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; font-weight: 700; flex-shrink: 0; color: white;
+}
+.job-title { font-size: 0.82rem; font-weight: 600; color: var(--white); line-height: 1.3; }
+.job-company { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+.job-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.job-tag {
+  font-size: 0.62rem; padding: 2px 7px; border-radius: 10px;
+  font-weight: 500; letter-spacing: 0.03em;
+}
+.job-salary { font-size: 0.72rem; color: var(--cyan); font-weight: 500; margin-top: 6px; }
+
+/* MAP */
+.map-wrap { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; }
+
+/* POPUP */
+.job-popup {
+  position: absolute; z-index: 500;
+  background: var(--panel); border: 1px solid var(--cyan);
+  border-radius: 10px; padding: 18px; width: 300px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  display: none;
+}
+.job-popup.show { display: block; }
+.popup-close {
+  position: absolute; top: 12px; right: 14px;
+  background: none; border: none; color: var(--muted);
+  cursor: pointer; font-size: 1rem; line-height: 1;
+}
+.popup-close:hover { color: var(--white); }
+.popup-logo {
+  width: 42px; height: 42px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.85rem; font-weight: 700; color: white; margin-bottom: 10px;
+}
+.popup-title { font-size: 1rem; font-weight: 600; margin-bottom: 3px; }
+.popup-company { font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; }
+.popup-meta { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.popup-meta-row { display: flex; align-items: center; gap: 7px; font-size: 0.75rem; color: var(--muted); }
+.popup-meta-row span:last-child { color: var(--white); }
+.popup-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.6; margin-bottom: 14px; }
+.popup-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 16px; }
+.popup-apply {
+  width: 100%; background: var(--cyan); color: var(--bg);
+  border: none; padding: 10px; border-radius: 6px; cursor: pointer;
+  font-family: 'Inter', sans-serif; font-size: 0.8rem; font-weight: 600;
+  letter-spacing: 0.05em; transition: background 0.15s;
+}
+.popup-apply:hover { background: var(--cyan2); }
+
+/* MAP LEGEND */
+.map-legend {
+  position: absolute; bottom: 24px; right: 16px; z-index: 400;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px;
+}
+.legend-title { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 8px; }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 0.72rem; color: var(--muted); margin-bottom: 5px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* RESULT COUNT */
+.result-bar {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 400; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 20px;
+  padding: 6px 16px; font-size: 0.75rem; color: var(--muted);
+  pointer-events: none;
+}
+.result-bar strong { color: var(--cyan); }
+
+@media (max-width: 700px) {
+  .sidebar { width: 100%; position: fixed; bottom: 0; left: 0; right: 0; height: 50vh; z-index: 600; border-right: none; border-top: 1px solid var(--border); }
+  .map-wrap { height: 50vh; }
+  .app { flex-direction: column; }
+  .header-stats { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">KC<span>TechJobs</span></div>
+  <div class="header-search">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Search jobs, companies, skills…" oninput="applyFilters()">
+  </div>
+  <div class="header-stats">
+    <div class="stat"><div class="stat-num" id="totalJobs">0</div><div class="stat-label">Jobs</div></div>
+    <div class="stat"><div class="stat-num" id="totalCompanies">0</div><div class="stat-label">Companies</div></div>
+    <div class="stat"><div class="stat-num" id="avgSalary">$0k</div><div class="stat-label">Avg Salary</div></div>
+  </div>
+  <div class="city-badge">📍 Kansas City Metro</div>
+</header>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Category</div>
+      <div class="cat-filters" id="catFilters">
+        <button class="cat-btn active" data-cat="all" onclick="setCat('all',this)">
+          <span class="cat-dot" style="background:#7a90a4"></span> All Categories
+          <span class="cat-count" id="count-all">0</span>
+        </button>
+        <button class="cat-btn" data-cat="ai" onclick="setCat('ai',this)">
+          <span class="cat-dot" style="background:var(--ai)"></span> AI / Machine Learning
+          <span class="cat-count" id="count-ai">0</span>
+        </button>
+        <button class="cat-btn" data-cat="eng" onclick="setCat('eng',this)">
+          <span class="cat-dot" style="background:var(--eng)"></span> Software Engineering
+          <span class="cat-count" id="count-eng">0</span>
+        </button>
+        <button class="cat-btn" data-cat="data" onclick="setCat('data',this)">
+          <span class="cat-dot" style="background:var(--data)"></span> Data & Analytics
+          <span class="cat-count" id="count-data">0</span>
+        </button>
+        <button class="cat-btn" data-cat="design" onclick="setCat('design',this)">
+          <span class="cat-dot" style="background:var(--design)"></span> Design & UX
+          <span class="cat-count" id="count-design">0</span>
+        </button>
+        <button class="cat-btn" data-cat="mgmt" onclick="setCat('mgmt',this)">
+          <span class="cat-dot" style="background:var(--mgmt)"></span> Management & Sales
+          <span class="cat-count" id="count-mgmt">0</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Work Type</div>
+      <div class="type-filters">
+        <button class="type-btn active" data-type="all" onclick="setType('all',this)">All</button>
+        <button class="type-btn" data-type="onsite" onclick="setType('onsite',this)">On-site</button>
+        <button class="type-btn" data-type="hybrid" onclick="setType('hybrid',this)">Hybrid</button>
+        <button class="type-btn" data-type="remote" onclick="setType('remote',this)">Remote</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Salary Range ($/yr)</div>
+      <div class="salary-row">
+        <input class="salary-input" type="number" id="salMin" placeholder="Min" oninput="applyFilters()">
+        <span class="salary-sep">–</span>
+        <input class="salary-input" type="number" id="salMax" placeholder="Max" oninput="applyFilters()">
+      </div>
+    </div>
+
+    <div class="job-list" id="jobList"></div>
+  </div>
+
+  <!-- MAP -->
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="result-bar" id="resultBar"><strong>0</strong> jobs shown</div>
+    <div class="map-legend">
+      <div class="legend-title">Category</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--ai)"></span>AI / ML</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--eng)"></span>Engineering</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--data)"></span>Data</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--design)"></span>Design</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--mgmt)"></span>Management</div>
+    </div>
+    <!-- POPUP -->
+    <div class="job-popup" id="jobPopup">
+      <button class="popup-close" onclick="closePopup()">✕</button>
+      <div class="popup-logo" id="popupLogo"></div>
+      <div class="popup-title" id="popupTitle"></div>
+      <div class="popup-company" id="popupCompany"></div>
+      <div class="popup-meta" id="popupMeta"></div>
+      <div class="popup-desc" id="popupDesc"></div>
+      <div class="popup-tags" id="popupTags"></div>
+      <button class="popup-apply">Apply Now →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS = { ai:'#00c2cb', eng:'#4f8ef7', data:'#a78bfa', design:'#f97316', mgmt:'#34d399' };
+
+const JOBS = [
+  // AI / ML
+  { id:1, title:'Senior ML Engineer', company:'Garmin International', cat:'ai', type:'hybrid', lat:38.8814, lng:-94.8191, salary:145000, skills:['PyTorch','TensorFlow','Python','CUDA'], desc:'Build ML models for navigation and fitness products used by millions worldwide. Work with sensor data, GPS signals, and health metrics.', color:'#0a2342', logo:'G' },
+  { id:2, title:'AI Research Scientist', company:'Cerner (Oracle Health)', cat:'ai', type:'onsite', lat:39.0997, lng:-94.5786, salary:162000, skills:['NLP','Clinical AI','Python','Research'], desc:'Develop AI models that improve patient outcomes across thousands of hospitals. Focus on clinical decision support and medical NLP.', color:'#c74b00', logo:'C' },
+  { id:3, title:'Computer Vision Engineer', company:'Garmin International', cat:'ai', type:'onsite', lat:38.8820, lng:-94.8205, salary:138000, skills:['OpenCV','PyTorch','C++','Embedded'], desc:'Build real-time computer vision systems for automotive and aviation displays. Requires experience with edge deployment.', color:'#0a2342', logo:'G' },
+  { id:4, title:'AI Product Manager', company:'H&R Block', cat:'ai', type:'hybrid', lat:39.1010, lng:-94.5823, salary:128000, skills:['AI Strategy','Product','SQL','Roadmapping'], desc:'Lead the AI-powered tax assistant product. Work with engineering and data science to ship features used by 20M+ customers.', color:'#1a6b3a', logo:'H' },
+  { id:5, title:'Machine Learning Ops', company:'VinSolutions', cat:'ai', type:'remote', lat:38.9608, lng:-94.6630, salary:118000, skills:['MLOps','Kubernetes','AWS','Python'], desc:'Build and maintain ML infrastructure for automotive CRM platform. Design model deployment pipelines and monitoring systems.', color:'#003087', logo:'V' },
+  { id:6, title:'NLP Engineer', company:'Netsmart Technologies', cat:'ai', type:'hybrid', lat:38.9142, lng:-94.7700, salary:132000, skills:['NLP','BERT','Python','Healthcare'], desc:'Build NLP pipelines for behavioral health EHR system. Extract clinical insights from unstructured medical notes.', color:'#0057a8', logo:'N' },
+
+  // Software Engineering
+  { id:7, title:'Senior Software Engineer', company:'Sprint (T-Mobile)', cat:'eng', type:'hybrid', lat:38.8161, lng:-94.5317, salary:135000, skills:['Java','Microservices','AWS','React'], desc:'Build core network management systems for T-Mobile infrastructure. Work on high-traffic, mission-critical backend services.', color:'#e20074', logo:'T' },
+  { id:8, title:'Full Stack Developer', company:'C2FO', cat:'eng', type:'remote', lat:38.9784, lng:-94.6740, salary:112000, skills:['React','Node.js','TypeScript','PostgreSQL'], desc:'Build financial technology products that help businesses access working capital. Fast-growing fintech with global reach.', color:'#ff6b00', logo:'C' },
+  { id:9, title:'iOS Developer', company:'Garmin International', cat:'eng', type:'onsite', lat:38.8814, lng:-94.8195, salary:122000, skills:['Swift','SwiftUI','HealthKit','CoreBluetooth'], desc:'Build iOS apps for Garmin Connect and wearable device integration. Millions of users depend on your work daily.', color:'#0a2342', logo:'G' },
+  { id:10, title:'Platform Engineer', company:'PayIt', cat:'eng', type:'hybrid', lat:39.1005, lng:-94.5750, salary:125000, skills:['Kubernetes','Terraform','GCP','Go'], desc:'Build and scale government payments platform serving 50+ state and city agencies. Cloud-native infrastructure role.', color:'#6c2bd9', logo:'P' },
+  { id:11, title:'Backend Engineer', company:'Euronet Worldwide', cat:'eng', type:'onsite', lat:39.0870, lng:-94.6700, salary:108000, skills:['Java','Spring Boot','Oracle','Payments'], desc:'Build payment processing systems handling billions in transactions globally. High-reliability, low-latency engineering.', color:'#005bac', logo:'E' },
+  { id:12, title:'DevOps Engineer', company:'AMC Networks', cat:'eng', type:'hybrid', lat:38.9500, lng:-94.7200, salary:115000, skills:['AWS','Docker','Jenkins','Linux'], desc:'Manage CI/CD pipelines and cloud infrastructure for streaming media platform. Support engineering teams across multiple products.', color:'#e50000', logo:'A' },
+
+  // Data
+  { id:13, title:'Data Scientist', company:'H&R Block', cat:'data', type:'hybrid', lat:39.1015, lng:-94.5810, salary:118000, skills:['Python','SQL','Spark','Statistics'], desc:'Build predictive models for tax outcome optimization and customer segmentation. Work with one of the largest financial datasets in the US.', color:'#1a6b3a', logo:'H' },
+  { id:14, title:'Senior Data Engineer', company:'Cerner (Oracle Health)', cat:'data', type:'onsite', lat:39.0980, lng:-94.5770, salary:130000, skills:['Spark','Hadoop','Python','Kafka'], desc:'Design healthcare data pipelines processing millions of patient records daily. Build the data infrastructure powering clinical analytics.', color:'#c74b00', logo:'C' },
+  { id:15, title:'Business Intelligence Analyst', company:'DST Systems', cat:'data', type:'hybrid', lat:39.0920, lng:-94.5900, salary:88000, skills:['Tableau','SQL','Power BI','Excel'], desc:'Build dashboards and reports for financial services clients. Translate complex data into clear business insights.', color:'#004b87', logo:'D' },
+  { id:16, title:'Data Analytics Lead', company:'Burns & McDonnell', cat:'data', type:'onsite', lat:38.9950, lng:-94.6400, salary:122000, skills:['Python','SQL','Tableau','Engineering'], desc:'Lead data analytics initiatives for engineering and construction projects. Build data-driven decision tools for project managers.', color:'#e8a000', logo:'B' },
+
+  // Design
+  { id:17, title:'Senior UX Designer', company:'C2FO', cat:'design', type:'remote', lat:38.9790, lng:-94.6720, salary:105000, skills:['Figma','User Research','Prototyping','Design Systems'], desc:'Design intuitive financial interfaces for business users globally. Own the design system and define UX standards across products.', color:'#ff6b00', logo:'C' },
+  { id:18, title:'Product Designer', company:'PayIt', cat:'design', type:'hybrid', lat:39.1000, lng:-94.5760, salary:98000, skills:['Figma','UX','Accessibility','Mobile'], desc:'Design government-facing digital services that need to work for everyone. Strong focus on accessibility and inclusive design.', color:'#6c2bd9', logo:'P' },
+  { id:19, title:'UI/UX Researcher', company:'Netsmart Technologies', cat:'design', type:'onsite', lat:38.9150, lng:-94.7680, salary:88000, skills:['User Research','Usability Testing','Figma','Healthcare UX'], desc:'Conduct user research with clinicians and healthcare workers. Translate findings into actionable design improvements for EHR products.', color:'#0057a8', logo:'N' },
+
+  // Management / Sales
+  { id:20, title:'Engineering Manager', company:'VinSolutions', cat:'mgmt', type:'hybrid', lat:38.9600, lng:-94.6620, salary:155000, skills:['Team Leadership','Agile','Roadmapping','Hiring'], desc:'Lead a team of 8 engineers building automotive CRM products. Own delivery, culture, and technical direction for your squad.', color:'#003087', logo:'V' },
+  { id:21, title:'Technical Sales Director', company:'Netsmart Technologies', cat:'mgmt', type:'onsite', lat:38.9130, lng:-94.7710, salary:148000, skills:['SaaS Sales','Healthcare IT','CRM','Presentations'], desc:'Drive new business for behavioral health technology platform. Sell to hospital systems and state agencies across the region.', color:'#0057a8', logo:'N' },
+  { id:22, title:'Product Manager — AI', company:'Cerner (Oracle Health)', cat:'mgmt', type:'hybrid', lat:39.0990, lng:-94.5795, salary:138000, skills:['AI Products','Healthcare','Roadmapping','SQL'], desc:'Own the roadmap for AI-powered clinical tools. Work with physicians, data scientists, and engineers to ship products that save lives.', color:'#c74b00', logo:'C' },
+  { id:23, title:'Scrum Master', company:'Sprint (T-Mobile)', cat:'mgmt', type:'onsite', lat:38.8155, lng:-94.5310, salary:95000, skills:['Scrum','Jira','Agile','Coaching'], desc:'Facilitate agile ceremonies and remove blockers for engineering teams. Help squads continuously improve their delivery.', color:'#e20074', logo:'T' },
+  { id:24, title:'Entry Level AI Annotator', company:'Webgen Technologies', cat:'ai', type:'remote', lat:38.8800, lng:-94.8150, salary:52000, skills:['Attention to detail','English','Logic','No exp required'], desc:'Label and evaluate AI training data from home. No prior experience required — just strong attention to detail and critical thinking.', color:'#2d6a4f', logo:'W' },
+  { id:25, title:'IT Support Specialist', company:'JCCC', cat:'eng', type:'onsite', lat:38.9070, lng:-94.7590, salary:48000, skills:['Help Desk','Windows','Networking','Entry Level'], desc:'Support faculty and students at Johnson County Community College. Great entry-level role for those studying tech or IT.', color:'#003087', logo:'J' },
+];
+
+const TYPE_LABELS = { onsite:'On-site', hybrid:'Hybrid', remote:'Remote' };
+let activeMarkers = [];
+let map, activeJobId = null, currentCat = 'all', currentType = 'all';
+
+// Init map
+function initMap() {
+  map = L.map('map', { zoomControl: false }).setView([38.97, -94.68], 11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO', maxZoom: 19
+  }).addTo(map);
+  L.control.zoom({ position: 'topright' }).addTo(map);
+  map.on('click', closePopup);
+}
+
+function makeIcon(color, cat) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:32px;height:32px;border-radius:50%;
+      background:${color};border:2.5px solid rgba(255,255,255,0.25);
+      display:flex;align-items:center;justify-content:center;
+      font-size:11px;font-weight:700;color:white;
+      box-shadow:0 2px 8px rgba(0,0,0,0.4);
+      transition:transform 0.15s;cursor:pointer;
+      font-family:Inter,sans-serif;
+    ">${cat.toUpperCase().charAt(0)}</div>`,
+    iconSize: [32, 32], iconAnchor: [16, 16]
+  });
+}
+
+function tagHTML(skill, color) {
+  return `<span class="job-tag" style="background:${color}22;color:${color};border:1px solid ${color}44">${skill}</span>`;
+}
+
+function renderJobs(jobs) {
+  // clear markers
+  activeMarkers.forEach(m => map.removeLayer(m));
+  activeMarkers = [];
+
+  const list = document.getElementById('jobList');
+  list.innerHTML = '';
+  document.getElementById('resultBar').innerHTML = `<strong>${jobs.length}</strong> jobs shown`;
+
+  jobs.forEach(job => {
+    const color = COLORS[job.cat];
+    // marker
+    const marker = L.marker([job.lat, job.lng], { icon: makeIcon(color, job.cat) })
+      .addTo(map)
+      .on('click', (e) => { e.originalEvent.stopPropagation(); selectJob(job); });
+    activeMarkers.push(marker);
+
+    // card
+    const card = document.createElement('div');
+    card.className = 'job-card';
+    card.id = `card-${job.id}`;
+    card.innerHTML = `
+      <div class="job-card-top">
+        <div class="company-logo" style="background:${job.color}">${job.logo}</div>
+        <div>
+          <div class="job-title">${job.title}</div>
+          <div class="job-company">${job.company}</div>
+        </div>
+      </div>
+      <div class="job-tags">
+        ${tagHTML(TYPE_LABELS[job.type], color)}
+        ${tagHTML(job.cat.toUpperCase(), color)}
+      </div>
+      <div class="job-salary">$${(job.salary/1000).toFixed(0)}k/yr</div>
+    `;
+    card.onclick = () => selectJob(job);
+    list.appendChild(card);
+  });
+
+  updateStats(jobs);
+}
+
+function selectJob(job) {
+  // highlight card
+  document.querySelectorAll('.job-card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById(`card-${job.id}`);
+  if (card) { card.classList.add('active'); card.scrollIntoView({ behavior:'smooth', block:'nearest' }); }
+
+  // show popup
+  const color = COLORS[job.cat];
+  document.getElementById('popupLogo').style.background = job.color;
+  document.getElementById('popupLogo').textContent = job.logo;
+  document.getElementById('popupTitle').textContent = job.title;
+  document.getElementById('popupCompany').textContent = job.company;
+  document.getElementById('popupMeta').innerHTML = `
+    <div class="popup-meta-row">📍 <span>Kansas City, KS</span></div>
+    <div class="popup-meta-row">💼 <span>${TYPE_LABELS[job.type]}</span></div>
+    <div class="popup-meta-row">💰 <span style="color:var(--cyan)">$${(job.salary/1000).toFixed(0)}k / year</span></div>
+  `;
+  document.getElementById('popupDesc').textContent = job.desc;
+  document.getElementById('popupTags').innerHTML = job.skills.map(s => tagHTML(s, color)).join('');
+
+  const popup = document.getElementById('jobPopup');
+  popup.classList.add('show');
+  popup.style.top = '20px';
+  popup.style.right = '16px';
+  popup.style.left = 'auto';
+
+  map.setView([job.lat, job.lng], 13, { animate: true });
+  activeJobId = job.id;
+}
+
+function closePopup() {
+  document.getElementById('jobPopup').classList.remove('show');
+  document.querySelectorAll('.job-card').forEach(c => c.classList.remove('active'));
+  activeJobId = null;
+}
+
+function applyFilters() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const salMin = parseInt(document.getElementById('salMin').value) || 0;
+  const salMax = parseInt(document.getElementById('salMax').value) || Infinity;
+
+  const filtered = JOBS.filter(j => {
+    const matchCat = currentCat === 'all' || j.cat === currentCat;
+    const matchType = currentType === 'all' || j.type === currentType;
+    const matchSal = j.salary >= salMin && j.salary <= salMax;
+    const matchQ = !q || j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q) || j.skills.some(s => s.toLowerCase().includes(q));
+    return matchCat && matchType && matchSal && matchQ;
+  });
+
+  renderJobs(filtered);
+}
+
+function setCat(cat, btn) {
+  currentCat = cat;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function setType(type, btn) {
+  currentType = type;
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function updateStats(jobs) {
+  document.getElementById('totalJobs').textContent = jobs.length;
+  const companies = new Set(jobs.map(j => j.company)).size;
+  document.getElementById('totalCompanies').textContent = companies;
+  const avg = jobs.length ? Math.round(jobs.reduce((s,j) => s+j.salary,0)/jobs.length/1000) : 0;
+  document.getElementById('avgSalary').textContent = `$${avg}k`;
+
+  // update counts
+  ['ai','eng','data','design','mgmt'].forEach(cat => {
+    document.getElementById(`count-${cat}`).textContent = JOBS.filter(j=>j.cat===cat).length;
+  });
+  document.getElementById('count-all').textContent = JOBS.length;
+}
+
+initMap();
+applyFilters();
+</script>
+</body>
+</html>
